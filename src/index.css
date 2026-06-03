@@ -1,0 +1,8 @@
+:root { color-scheme: dark; }
+* { margin: 0; box-sizing: border-box; }
+html, body, #root { min-height: 100%; }
+body {
+  background: #15120E;
+  -webkit-font-smoothing: antialiased;
+  text-rendering: optimizeLegibility;
+}
