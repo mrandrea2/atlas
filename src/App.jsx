@@ -181,6 +181,64 @@ const CSS = `
 .authswitch{text-align:center;margin-top:14px;font-size:13px;color:var(--muted)}
 .authswitch button{background:none;border:0;color:var(--accent);font-weight:700;cursor:pointer;font-family:inherit;font-size:13px}
 .authmsg{font-size:12.5px;color:var(--muted);background:var(--surface2);border-radius:10px;padding:10px 12px;margin-bottom:12px;line-height:1.45}
+
+/* ===== Ottimizzazione smartphone: testi più grandi e tocchi più comodi ===== */
+@media (max-width:600px){
+  .atlas{font-size:16px}
+  .top{padding:14px 15px}
+  .brand{font-size:18px}
+  .brand .mark{width:32px;height:32px}
+  .tabs{padding:4px}
+  .tab{font-size:13.5px;padding:10px 12px}
+  .acct{padding:10px;max-width:none}
+  .acct .em{display:none}            /* su mobile solo icona, niente email lunga */
+  .hero{margin:30px 0 26px}
+  .hero h1{font-size:28px}
+  .hero p{font-size:16px;line-height:1.55}
+  .chip{font-size:15px;padding:12px 15px}
+  .bubble{font-size:16.5px;line-height:1.6;max-width:86%}
+  .av{width:34px;height:34px}
+  .field{padding:9px 9px 9px 16px}
+  .field textarea{font-size:16px}    /* >=16px evita lo zoom su iOS al focus */
+  .send{width:46px;height:46px}
+  .hint{font-size:12px}
+  .form h2,.plan h2,.libtop h2{font-size:25px}
+  .form .sub{font-size:15.5px}
+  .lab{font-size:14px}
+  .opt{font-size:15.5px;padding:12px 16px}
+  .ta{font-size:16px;min-height:84px}
+  .step button{width:48px;height:48px;font-size:22px}
+  .step .n{font-size:26px}
+  .cta{font-size:17px;padding:17px}
+  .libbtn{font-size:14.5px;padding:11px 14px}
+  .over{font-size:15.5px}
+  .day{padding:18px 16px}
+  .ed{font-size:16px;padding:5px 7px}
+  .ed.dn{font-size:18px}
+  .ed.en{font-size:16.5px}
+  .ed.focus{font-size:13px;max-width:46%}
+  .daystat{font-size:13.5px;gap:18px}
+  .warm,.warm .warmin{font-size:14.5px}
+  .params{gap:10px}
+  .params .pin{font-size:16px;width:70px}
+  .params label{font-size:11px}
+  .notein{font-size:14.5px}
+  .mini{width:38px;height:38px}      /* tap target generosi */
+  .iconbtn{padding:12px}
+  .finalnote{font-size:15px;line-height:1.6}
+  .gbtn{font-size:14.5px;padding:15px}
+  .prog{font-size:15px;line-height:1.7}
+  .tweak input{font-size:16px;padding:14px}
+  .libcard{padding:16px}
+  .libcard .cn{font-size:16.5px}
+  .libcard .cm{font-size:13px}
+  .libcard .ctag{font-size:12px}
+  .dcard h3{font-size:20px}
+  .dcard input{font-size:16px;padding:14px}
+  .dghost,.dok{padding:14px;font-size:15px}
+  .authmsg{font-size:13.5px}
+  .cloudtag{font-size:12.5px}
+}
 `;
 
 // Le chiamate passano per /api/claude (serverless function di Vercel),
@@ -192,7 +250,7 @@ async function callClaude({ system, messages, max_tokens = 1024 }) {
     body: JSON.stringify({ system, messages, max_tokens }),
   });
   const data = await res.json().catch(() => ({}));
-  if (!res.ok || data.error) throw new Error("network");
+  if (!res.ok || data.error) throw new Error(data.error || `Errore ${res.status}`);
   return (data.content || []).filter((b) => b.type === "text").map((b) => b.text).join("\n");
 }
 
@@ -366,8 +424,8 @@ function Chat() {
     try {
       const reply = await callClaude({ system: CHAT_SYSTEM, messages: next });
       setMsgs([...next, { role: "assistant", content: reply || "…" }]);
-    } catch {
-      setMsgs([...next, { role: "assistant", content: "⚠️ Connessione non riuscita. Riprova tra un attimo." }]);
+    } catch (e) {
+      setMsgs([...next, { role: "assistant", content: "⚠️ " + (e?.message || "Connessione non riuscita. Riprova tra un attimo.") }]);
     } finally { setBusy(false); }
   }
 
@@ -486,8 +544,8 @@ function SchedaBuilder({ user }) {
       const raw = await callClaude({ system: sys, messages: [{ role: "user", content: prompt }], max_tokens: 600 });
       const nx = extractJSON(raw);
       setPlan((p) => { const c = clone(p); c.giorni[di].esercizi[ei] = nx; return c; });
-    } catch {
-      setErr("Sostituzione non riuscita, riprova.");
+    } catch (e) {
+      setErr(e?.message ? "Errore: " + e.message : "Sostituzione non riuscita, riprova.");
     } finally { setSwap(null); }
   }
 
@@ -518,7 +576,8 @@ function SchedaBuilder({ user }) {
       setPlan(extractJSON(raw));
       setTweak("");
     } catch (e) {
-      setErr(e.message === "network" ? "Connessione non riuscita, riprova." : "Non sono riuscito a leggere la scheda. Riprova o cambia i parametri.");
+      const m = e?.message || "";
+      setErr(m && m !== "parse" ? "Errore: " + m : "Non sono riuscito a leggere la scheda. Riprova o cambia i parametri.");
     } finally { setBusy(false); }
   }
 
@@ -561,7 +620,7 @@ function SchedaBuilder({ user }) {
       const prompt = `Obiettivo: ${goal}. Livello: ${level}. Giorni/sett: ${days}. Scheda: "${plan.titolo}", ${tot} esercizi totali.`;
       const raw = await callClaude({ system: sys, messages: [{ role: "user", content: prompt }], max_tokens: 900 });
       setProg(raw.trim());
-    } catch { setErr("Progressione non riuscita, riprova."); }
+    } catch (e) { setErr(e?.message ? "Errore: " + e.message : "Progressione non riuscita, riprova."); }
     finally { setProgBusy(false); }
   }
 
