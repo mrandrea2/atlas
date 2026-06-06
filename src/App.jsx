@@ -1,5 +1,5 @@
 import React, { useState, useRef, useEffect } from "react";
-import { Dumbbell, MessageSquareText, Send, Sparkles, RotateCw, Copy, Check, Plus, Shuffle, X, Bookmark, FolderOpen, Download, Trash2, TrendingUp, ArrowLeft, User, LogOut, Cloud } from "lucide-react";
+import { Dumbbell, MessageSquareText, Send, Sparkles, RotateCw, Copy, Check, Plus, Shuffle, X, Bookmark, FolderOpen, Download, Trash2, TrendingUp, ArrowLeft, User, LogOut, Cloud, CalendarCheck } from "lucide-react";
 import { supabase, supabaseEnabled } from "./supabase";
 
 // ---- stile (font + palette "chalk & iron": charcoal caldo + accento ember) ----
@@ -39,6 +39,10 @@ const CSS = `
 .credit{text-align:center;margin-top:28px;font-size:12px;color:var(--muted);letter-spacing:.01em}
 .credit a{color:var(--muted);text-decoration:none;border-bottom:1px solid var(--border);padding-bottom:1px;transition:.15s;font-weight:600}
 .credit a:hover{color:var(--accent);border-color:var(--accent)}
+.brand .bwrap{display:flex;flex-direction:column;line-height:1.04}
+.brand .bsub{font-size:9px;font-weight:700;color:var(--muted);letter-spacing:.07em;text-transform:uppercase;margin-top:1px}
+.bookcta{display:inline-flex;align-items:center;gap:7px;margin-top:13px;background:transparent;border:1px solid var(--accent);color:var(--accent);border-radius:11px;padding:9px 16px;font-size:13px;font-weight:700;text-decoration:none;transition:.15s}
+.bookcta:hover{background:var(--accent);color:#15120E}
 .chip{background:var(--surface);border:1px solid var(--border);color:var(--text);padding:9px 13px;
   border-radius:11px;font-size:13px;cursor:pointer;transition:.15s;font-weight:500}
 .chip:hover{border-color:var(--accent);color:var(--accent)}
@@ -309,6 +313,15 @@ const GOALS = ["Ipertrofia", "Forza", "Dimagrimento", "Resistenza", "Generale"];
 const LEVELS = ["Principiante", "Intermedio", "Avanzato"];
 const EQUIP = ["Palestra completa", "Home gym", "Corpo libero"];
 
+function Footer() {
+  return (
+    <div className="credit">
+      <div>Un progetto di <a href="https://andrea-bertelli.vercel.app" target="_blank" rel="noopener noreferrer">Andrea Bertelli · Human Performance Lab</a></div>
+      <a className="bookcta" href="https://calendly.com/humanperformancelab-app/30min" target="_blank" rel="noopener noreferrer"><CalendarCheck size={15} /> Prenota una consulenza</a>
+    </div>
+  );
+}
+
 export default function App() {
   const [tab, setTab] = useState("chat");
   const [user, setUser] = useState(null);
@@ -329,7 +342,7 @@ export default function App() {
       <header className="top">
         <div className="brand">
           <span className="mark"><Dumbbell size={17} strokeWidth={2.5} /></span>
-          <span className="disp">ATLAS</span>
+          <span className="bwrap"><span className="disp">ATLAS</span><span className="bsub">Human Performance Lab</span></span>
         </div>
         <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
           <nav className="tabs">
@@ -448,7 +461,7 @@ function Chat() {
                 <button key={s} className="chip" onClick={() => send(s)}>{s}</button>
               ))}
             </div>
-            <div className="credit">Un progetto di <a href="https://andrea-bertelli.vercel.app" target="_blank" rel="noopener noreferrer">Andrea Bertelli · Human Performance Lab</a></div>
+            <Footer />
           </div>
         )}
         {msgs.map((m, i) => (
@@ -690,7 +703,7 @@ function SchedaBuilder({ user }) {
         </div>
         {err && <div className="err">{err}</div>}
         <button className="cta" onClick={() => generate()}><Sparkles size={18} /> Genera scheda</button>
-        <div className="credit">Un progetto di <a href="https://andrea-bertelli.vercel.app" target="_blank" rel="noopener noreferrer">Andrea Bertelli · Human Performance Lab</a></div>
+        <Footer />
       </div>
     );
   }
