@@ -36,6 +36,9 @@ const CSS = `
 .hero h1{font-size:30px;font-weight:800;margin:0 0 8px}
 .hero p{color:var(--muted);font-size:15px;max-width:430px;margin:0 auto;line-height:1.5}
 .chips{display:flex;flex-wrap:wrap;gap:8px;justify-content:center;margin-top:22px}
+.credit{text-align:center;margin-top:28px;font-size:12px;color:var(--muted);letter-spacing:.01em}
+.credit a{color:var(--muted);text-decoration:none;border-bottom:1px solid var(--border);padding-bottom:1px;transition:.15s;font-weight:600}
+.credit a:hover{color:var(--accent);border-color:var(--accent)}
 .chip{background:var(--surface);border:1px solid var(--border);color:var(--text);padding:9px 13px;
   border-radius:11px;font-size:13px;cursor:pointer;transition:.15s;font-weight:500}
 .chip:hover{border-color:var(--accent);color:var(--accent)}
@@ -238,6 +241,7 @@ const CSS = `
   .dghost,.dok{padding:14px;font-size:15px}
   .authmsg{font-size:13.5px}
   .cloudtag{font-size:12.5px}
+  .credit{font-size:13px;margin-top:30px}
 }
 `;
 
@@ -444,6 +448,7 @@ function Chat() {
                 <button key={s} className="chip" onClick={() => send(s)}>{s}</button>
               ))}
             </div>
+            <div className="credit">Un progetto di <a href="https://andrea-bertelli.vercel.app" target="_blank" rel="noopener noreferrer">Andrea Bertelli · Human Performance Lab</a></div>
           </div>
         )}
         {msgs.map((m, i) => (
@@ -685,6 +690,7 @@ function SchedaBuilder({ user }) {
         </div>
         {err && <div className="err">{err}</div>}
         <button className="cta" onClick={() => generate()}><Sparkles size={18} /> Genera scheda</button>
+        <div className="credit">Un progetto di <a href="https://andrea-bertelli.vercel.app" target="_blank" rel="noopener noreferrer">Andrea Bertelli · Human Performance Lab</a></div>
       </div>
     );
   }
