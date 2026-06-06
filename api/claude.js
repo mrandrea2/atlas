@@ -9,7 +9,7 @@ export default async function handler(req, res) {
     return;
   }
 
-  const apiKey = process.env.ANTHROPIC_API_KEY;
+  const apiKey = process.env.ANTHROPIC_API_KEY?.trim();
   if (!apiKey) {
     res.status(500).json({ error: "ANTHROPIC_API_KEY non configurata su Vercel (Settings -> Environment Variables, poi rifai il deploy)." });
     return;
