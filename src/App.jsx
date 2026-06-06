@@ -572,7 +572,7 @@ function SchedaBuilder({ user }) {
         msgs.unshift({ role: "assistant", content: JSON.stringify(plan) });
         msgs.unshift({ role: "user", content: buildPrompt() });
       }
-      const raw = await callClaude({ system: PLAN_SYSTEM, messages: msgs, max_tokens: 1500 });
+      const raw = await callClaude({ system: PLAN_SYSTEM, messages: msgs, max_tokens: 8000 });
       setPlan(extractJSON(raw));
       setTweak("");
     } catch (e) {
