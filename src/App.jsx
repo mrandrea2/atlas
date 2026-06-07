@@ -1,6 +1,7 @@
 import React, { useState, useRef, useEffect } from "react";
-import { Dumbbell, MessageSquareText, Send, Sparkles, RotateCw, Copy, Check, Plus, Shuffle, X, Bookmark, FolderOpen, Download, Trash2, TrendingUp, ArrowLeft, User, LogOut, Cloud, CalendarCheck } from "lucide-react";
+import { Dumbbell, MessageSquareText, Send, Sparkles, RotateCw, Copy, Check, Plus, Shuffle, X, Bookmark, FolderOpen, Download, Trash2, TrendingUp, ArrowLeft, User, LogOut, Cloud, CalendarCheck, FileText } from "lucide-react";
 import { supabase, supabaseEnabled } from "./supabase";
+import { jsPDF } from "jspdf";
 
 // ---- stile (font + palette "chalk & iron": charcoal caldo + accento ember) ----
 const CSS = `
@@ -88,6 +89,8 @@ const CSS = `
 .ta{width:100%;background:var(--surface);border:1px solid var(--border);border-radius:13px;color:var(--text);
   font-family:inherit;font-size:14.5px;padding:13px;resize:vertical;min-height:74px;outline:none}
 .ta:focus{border-color:var(--accent)}
+.txin{width:100%;background:var(--surface);border:1px solid var(--border);border-radius:13px;color:var(--text);font-family:inherit;font-size:14.5px;padding:13px;outline:none}
+.txin:focus{border-color:var(--accent)}
 .cta{width:100%;padding:15px;border-radius:14px;border:0;background:var(--accent);color:#15120E;
   font-family:'Bricolage Grotesque';font-weight:700;font-size:16px;cursor:pointer;display:flex;
   align-items:center;justify-content:center;gap:9px;transition:.15s}
@@ -214,6 +217,7 @@ const CSS = `
   .lab{font-size:14px}
   .opt{font-size:15.5px;padding:12px 16px}
   .ta{font-size:16px;min-height:84px}
+  .txin{font-size:16px;padding:14px}
   .step button{width:48px;height:48px;font-size:22px}
   .step .n{font-size:26px}
   .cta{font-size:17px;padding:17px}
@@ -293,6 +297,117 @@ function dayMinutes(d) {
     sec += sets * (40 + rest);
   });
   return Math.round(sec / 60);
+}
+
+function genPdf(plan, client) {
+  const doc = new jsPDF({ unit: "mm", format: "a4" });
+  const W = 210, H = 297, M = 16, CW = W - M * 2;
+  const accent = [255, 90, 31], dark = [26, 23, 18], muted = [122, 112, 102], light = [246, 243, 237], border = [226, 221, 213];
+  let y = 0;
+
+  function footer() {
+    doc.setDrawColor(...border); doc.setLineWidth(0.2); doc.line(M, H - 14, W - M, H - 14);
+    doc.setFont("helvetica", "normal"); doc.setFontSize(8); doc.setTextColor(...muted);
+    doc.text("andrea-bertelli.vercel.app   ·   calendly.com/humanperformancelab-app/30min", M, H - 9);
+    doc.text("Pag. " + doc.internal.getCurrentPageInfo().pageNumber, W - M, H - 9, { align: "right" });
+  }
+
+  function header() {
+    doc.setFillColor(...accent); doc.rect(0, 0, W, 5, "F");
+    doc.setFont("helvetica", "bold"); doc.setFontSize(16); doc.setTextColor(...dark);
+    doc.text("ATLAS", M, 16);
+    doc.setFont("helvetica", "normal"); doc.setFontSize(8); doc.setTextColor(...muted);
+    doc.text("HUMAN PERFORMANCE LAB", M, 20.5);
+    doc.setFontSize(9); doc.text(new Date().toLocaleDateString("it-IT"), W - M, 16, { align: "right" });
+    y = 30;
+  }
+
+  function ensure(space) { if (y + space > H - 18) { footer(); doc.addPage(); header(); } }
+
+  header();
+
+  // Titolo
+  doc.setFont("helvetica", "bold"); doc.setFontSize(18); doc.setTextColor(...dark);
+  const tl = doc.splitTextToSize(plan.titolo || "Scheda di allenamento", CW);
+  doc.text(tl, M, y); y += tl.length * 7.5 + 1;
+
+  if (client && client.trim()) {
+    doc.setFont("helvetica", "bold"); doc.setFontSize(10.5); doc.setTextColor(...accent);
+    doc.text("Cliente: ", M, y);
+    const lw = doc.getTextWidth("Cliente: ");
+    doc.setFont("helvetica", "normal"); doc.setTextColor(...dark);
+    doc.text(client.trim(), M + lw, y);
+    y += 6;
+  }
+
+  // Panoramica
+  if (plan.panoramica) {
+    doc.setFont("helvetica", "normal"); doc.setFontSize(10.5); doc.setTextColor(...muted);
+    const ol = doc.splitTextToSize(plan.panoramica, CW);
+    doc.text(ol, M, y); y += ol.length * 5 + 3;
+  }
+  doc.setDrawColor(...accent); doc.setLineWidth(0.9); doc.line(M, y, M + 18, y); y += 7;
+
+  (plan.giorni || []).forEach((d) => {
+    ensure(20);
+    // Intestazione giorno
+    doc.setFillColor(...light); doc.roundedRect(M, y, CW, 9, 1.5, 1.5, "F");
+    doc.setFillColor(...accent); doc.rect(M, y, 1.6, 9, "F");
+    doc.setFont("helvetica", "bold"); doc.setFontSize(12); doc.setTextColor(...dark);
+    doc.text(d.nome || "Giorno", M + 5, y + 6);
+    if (d.focus) {
+      doc.setFont("helvetica", "bold"); doc.setFontSize(8.5); doc.setTextColor(...accent);
+      doc.text(String(d.focus).toUpperCase(), W - M - 3, y + 6, { align: "right" });
+    }
+    y += 12.5;
+
+    doc.setFont("helvetica", "normal"); doc.setFontSize(8.5); doc.setTextColor(...muted);
+    doc.text(daySets(d) + " serie  ·  ~" + dayMinutes(d) + " min", M, y); y += 4.5;
+
+    if (d.riscaldamento) {
+      doc.setFont("helvetica", "italic"); doc.setFontSize(9); doc.setTextColor(...muted);
+      const wl = doc.splitTextToSize("Riscaldamento: " + d.riscaldamento, CW);
+      ensure(wl.length * 4.5 + 2);
+      doc.text(wl, M, y); y += wl.length * 4.5 + 1.5;
+    }
+    y += 1.5;
+
+    (d.esercizi || []).forEach((e) => {
+      doc.setFontSize(9);
+      const meta = [e.intensita, e.note].filter(Boolean).join("  ·  ");
+      const ml = meta ? doc.splitTextToSize(meta, CW) : [];
+      ensure(6 + ml.length * 4 + 3);
+      doc.setFont("helvetica", "bold"); doc.setFontSize(10.5); doc.setTextColor(...dark);
+      doc.text(e.nome || "Esercizio", M, y);
+      doc.setFont("helvetica", "bold"); doc.setFontSize(10); doc.setTextColor(...accent);
+      const sr = (e.serie || "") + " × " + (e.ripetizioni || "") + (e.recupero ? "   ·   rec " + e.recupero : "");
+      doc.text(sr, W - M, y, { align: "right" });
+      y += 4.6;
+      if (meta) {
+        doc.setFont("helvetica", "normal"); doc.setFontSize(9); doc.setTextColor(...muted);
+        doc.text(ml, M, y); y += ml.length * 4;
+      }
+      y += 1.6;
+      doc.setDrawColor(...border); doc.setLineWidth(0.15); doc.line(M, y, W - M, y); y += 3.2;
+    });
+    y += 4;
+  });
+
+  // Note finali
+  if (plan.note) {
+    doc.setFontSize(9.5);
+    const nl = doc.splitTextToSize(plan.note, CW - 10);
+    const boxH = nl.length * 4.6 + 10;
+    ensure(boxH + 2);
+    doc.setFillColor(...light); doc.roundedRect(M, y, CW, boxH, 2, 2, "F");
+    doc.setFont("helvetica", "bold"); doc.setFontSize(9.5); doc.setTextColor(...accent);
+    doc.text("NOTE", M + 5, y + 6.5);
+    doc.setFont("helvetica", "normal"); doc.setTextColor(...dark);
+    doc.text(nl, M + 5, y + 12); y += boxH + 4;
+  }
+
+  footer();
+  doc.save((plan.titolo || "scheda").replace(/[^\w]+/g, "_") + ".pdf");
 }
 
 const CHAT_SYSTEM =
@@ -502,6 +617,7 @@ function SchedaBuilder({ user }) {
   const [days, setDays] = useState(3);
   const [equip, setEquip] = useState("Palestra completa");
   const [notes, setNotes] = useState("");
+  const [client, setClient] = useState("");
   const [plan, setPlan] = useState(null);
   const [busy, setBusy] = useState(false);
   const [err, setErr] = useState("");
@@ -622,6 +738,7 @@ function SchedaBuilder({ user }) {
   function openSaved(it) {
     setPlan(it.plan); setGoal(it.goal || goal); setLevel(it.level || level);
     setDays(it.days || days); setEquip(it.equip || equip); setNotes(it.notes || "");
+    setClient(it.cliente || "");
     setProg(null); setErr(""); setShowLib(false);
   }
 
@@ -678,6 +795,11 @@ function SchedaBuilder({ user }) {
         <p className="sub">Imposta i parametri, Atlas costruisce un programma strutturato in pochi secondi.</p>
 
         <div className="grp">
+          <label className="lab">Cliente (opzionale)</label>
+          <input className="txin" value={client} onChange={(e) => setClient(e.target.value)} placeholder="Nome del cliente" />
+        </div>
+
+        <div className="grp">
           <label className="lab">Obiettivo</label>
           <div className="opts">{GOALS.map((g) => <button key={g} className={`opt ${goal === g ? "on" : ""}`} onClick={() => setGoal(g)}>{g}</button>)}</div>
         </div>
@@ -726,7 +848,7 @@ function SchedaBuilder({ user }) {
           <h2 className="disp">{plan.titolo}</h2>
         </div>
         <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
-          <button className="iconbtn" onClick={() => { setSName(plan.titolo); setSClient(""); setDialog(true); }} title="Salva"><Bookmark size={17} /></button>
+          <button className="iconbtn" onClick={() => { setSName(plan.titolo); setSClient(client); setDialog(true); }} title="Salva"><Bookmark size={17} /></button>
           <button className="iconbtn" onClick={copyPlan} title="Copia">{copied ? <Check size={17} color="var(--accent)" /> : <Copy size={17} />}</button>
           <button className="iconbtn" onClick={downloadPlan} title="Scarica .txt"><Download size={17} /></button>
           <button className="iconbtn" onClick={() => setShowLib(true)} title="Libreria"><FolderOpen size={17} /></button>
@@ -770,6 +892,7 @@ function SchedaBuilder({ user }) {
       {plan.note && <div className="finalnote"><b>Note di Atlas — </b>{plan.note}</div>}
 
       <div className="barbtns">
+        <button className="gbtn" onClick={() => { try { genPdf(plan, client); } catch (e) { setErr("PDF non riuscito: " + (e?.message || "")); } }}><FileText size={15} /> Scarica PDF</button>
         <button className="gbtn" disabled={progBusy} onClick={genProg}>
           {progBusy ? <span className="spin"><RotateCw size={15} /></span> : <TrendingUp size={15} />} Progressione 4 settimane
         </button>
