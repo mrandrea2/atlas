@@ -1,5 +1,5 @@
 import React, { useState, useRef, useEffect } from "react";
-import { Dumbbell, MessageSquareText, Send, Sparkles, RotateCw, Copy, Check, Plus, Shuffle, X, Bookmark, FolderOpen, Download, Trash2, TrendingUp, ArrowLeft, User, LogOut, Cloud, CalendarCheck, FileText } from "lucide-react";
+import { Dumbbell, MessageSquareText, Send, Sparkles, RotateCw, Copy, Check, Plus, Shuffle, X, Bookmark, FolderOpen, Download, Trash2, TrendingUp, ArrowLeft, User, LogOut, Cloud, CalendarCheck, FileText, Mic, Volume2 } from "lucide-react";
 import { supabase, supabaseEnabled } from "./supabase";
 import { jsPDF } from "jspdf";
 
@@ -71,6 +71,18 @@ const CSS = `
   display:grid;place-items:center;cursor:pointer;flex:none;transition:.15s}
 .send:disabled{opacity:.4;cursor:default}
 .hint{text-align:center;color:var(--muted);font-size:11px;margin-top:9px}
+.mic{width:40px;height:40px;border-radius:12px;border:1px solid var(--border);background:var(--surface2);color:var(--muted);display:grid;place-items:center;cursor:pointer;flex:none;transition:.15s}
+.mic:hover{color:var(--accent);border-color:var(--accent)}
+.mic.on{background:var(--accent);color:#15120E;border-color:var(--accent);animation:pulse 1.2s infinite}
+@keyframes pulse{0%,100%{box-shadow:0 0 0 0 rgba(255,90,31,.5)}50%{box-shadow:0 0 0 7px rgba(255,90,31,0)}}
+.bubble.ai{white-space:normal}
+.speak{display:inline-flex;align-items:center;gap:5px;margin-top:9px;background:transparent;border:1px solid var(--border);color:var(--muted);border-radius:8px;padding:5px 9px;cursor:pointer;font-family:inherit}
+.speak:hover{color:var(--accent);border-color:var(--accent)}
+.mdp{margin:0 0 8px;line-height:1.55}
+.mdp:last-of-type{margin-bottom:0}
+.mdul,.mdol{margin:4px 0 8px;padding-left:20px;line-height:1.5}
+.mdul li,.mdol li{margin:3px 0}
+.mdcode{background:var(--surface2);border-radius:5px;padding:1px 5px;font-size:.9em;font-family:ui-monospace,SFMono-Regular,Menlo,monospace}
 
 /* form scheda */
 .form{padding:24px 2px 30px}
@@ -255,15 +267,87 @@ const CSS = `
 
 // Le chiamate passano per /api/claude (serverless function di Vercel),
 // così la chiave API resta sul server e non è mai esposta nel browser.
-async function callClaude({ system, messages, max_tokens = 1024 }) {
+async function callClaude({ system, messages, max_tokens = 1024, tier = "quality" }) {
   const res = await fetch("/api/claude", {
     method: "POST",
     headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ system, messages, max_tokens }),
+    body: JSON.stringify({ system, messages, max_tokens, tier }),
   });
   const data = await res.json().catch(() => ({}));
   if (!res.ok || data.error) throw new Error(data.error || `Errore ${res.status}`);
   return (data.content || []).filter((b) => b.type === "text").map((b) => b.text).join("\n");
+}
+
+// Chat in streaming: chiama l'endpoint Edge e riceve il testo a pezzi.
+async function callClaudeStream({ system, messages, max_tokens = 1024, onText }) {
+  const res = await fetch("/api/chat", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ system, messages, max_tokens }),
+  });
+  if (!res.ok || !res.body) {
+    const t = await res.text().catch(() => "");
+    throw new Error(t || `Errore ${res.status}`);
+  }
+  const reader = res.body.getReader();
+  const dec = new TextDecoder();
+  let full = "";
+  while (true) {
+    const { done, value } = await reader.read();
+    if (done) break;
+    full += dec.decode(value, { stream: true });
+    onText(full);
+  }
+  return full;
+}
+
+// --- Markdown leggero e sicuro (grassetto, corsivo, code, elenchi) ---
+function mdInline(s) {
+  const out = []; let rest = String(s); let k = 0;
+  const re = /(\*\*([^*]+)\*\*|\*([^*]+)\*|`([^`]+)`)/;
+  let m;
+  while ((m = rest.match(re))) {
+    if (m.index > 0) out.push(rest.slice(0, m.index));
+    if (m[2] !== undefined) out.push(<strong key={k++}>{m[2]}</strong>);
+    else if (m[3] !== undefined) out.push(<em key={k++}>{m[3]}</em>);
+    else if (m[4] !== undefined) out.push(<code key={k++} className="mdcode">{m[4]}</code>);
+    rest = rest.slice(m.index + m[0].length);
+  }
+  if (rest) out.push(rest);
+  return out;
+}
+function MD({ text }) {
+  const lines = String(text).split("\n");
+  const blocks = []; let list = null;
+  const flush = () => { if (list) { blocks.push(list); list = null; } };
+  lines.forEach((ln) => {
+    const t = ln.trim();
+    const ul = t.match(/^[-*]\s+(.*)/);
+    const ol = t.match(/^\d+[.)]\s+(.*)/);
+    if (ul) { if (!list || list.type !== "ul") { flush(); list = { type: "ul", items: [] }; } list.items.push(ul[1]); }
+    else if (ol) { if (!list || list.type !== "ol") { flush(); list = { type: "ol", items: [] }; } list.items.push(ol[1]); }
+    else { flush(); if (t) blocks.push({ type: "p", text: ln }); }
+  });
+  flush();
+  return (
+    <>
+      {blocks.map((b, i) =>
+        b.type === "ul" ? <ul key={i} className="mdul">{b.items.map((it, j) => <li key={j}>{mdInline(it)}</li>)}</ul>
+        : b.type === "ol" ? <ol key={i} className="mdol">{b.items.map((it, j) => <li key={j}>{mdInline(it)}</li>)}</ol>
+        : <p key={i} className="mdp">{mdInline(b.text)}</p>
+      )}
+    </>
+  );
+}
+
+function speak(t) {
+  try {
+    if (!("speechSynthesis" in window)) return;
+    window.speechSynthesis.cancel();
+    const u = new SpeechSynthesisUtterance(String(t).replace(/[*`#]/g, ""));
+    u.lang = "it-IT";
+    window.speechSynthesis.speak(u);
+  } catch {}
 }
 
 function extractJSON(text) {
@@ -542,8 +626,11 @@ function Chat() {
   const [msgs, setMsgs] = useState([]);
   const [text, setText] = useState("");
   const [busy, setBusy] = useState(false);
+  const [listening, setListening] = useState(false);
   const endRef = useRef(null);
   const taRef = useRef(null);
+  const recRef = useRef(null);
+  const speechOK = typeof window !== "undefined" && (window.SpeechRecognition || window.webkitSpeechRecognition);
 
   useEffect(() => { endRef.current?.scrollIntoView({ behavior: "smooth" }); }, [msgs, busy]);
 
@@ -551,21 +638,48 @@ function Chat() {
     const content = (q ?? text).trim();
     if (!content || busy) return;
     const next = [...msgs, { role: "user", content }];
-    setMsgs(next); setText(""); setBusy(true);
+    setMsgs([...next, { role: "assistant", content: "" }]); // segnaposto per lo streaming
+    setText(""); setBusy(true);
     if (taRef.current) taRef.current.style.height = "auto";
+    const update = (full) => setMsgs((m) => { const c = m.slice(); c[c.length - 1] = { role: "assistant", content: full }; return c; });
     try {
-      const reply = await callClaude({ system: CHAT_SYSTEM, messages: next });
-      setMsgs([...next, { role: "assistant", content: reply || "…" }]);
+      await callClaudeStream({ system: CHAT_SYSTEM, messages: next, onText: update });
     } catch (e) {
-      setMsgs([...next, { role: "assistant", content: "⚠️ " + (e?.message || "Connessione non riuscita. Riprova tra un attimo.") }]);
+      // Fallback senza streaming (se l'endpoint Edge non è disponibile)
+      try {
+        const reply = await callClaude({ system: CHAT_SYSTEM, messages: next, tier: "fast" });
+        update(reply || "…");
+      } catch (e2) {
+        update("⚠️ " + (e2?.message || e?.message || "Connessione non riuscita. Riprova tra un attimo."));
+      }
     } finally { setBusy(false); }
+  }
+
+  function toggleMic() {
+    if (!speechOK) return;
+    if (listening) { try { recRef.current?.stop(); } catch {} return; }
+    const SR = window.SpeechRecognition || window.webkitSpeechRecognition;
+    const rec = new SR();
+    rec.lang = "it-IT"; rec.interimResults = true; rec.continuous = false;
+    let base = text ? text + " " : "";
+    rec.onresult = (e) => {
+      let s = "";
+      for (let i = 0; i < e.results.length; i++) s += e.results[i][0].transcript;
+      setText((base + s).trimStart());
+      if (taRef.current) { taRef.current.style.height = "auto"; taRef.current.style.height = taRef.current.scrollHeight + "px"; }
+    };
+    rec.onend = () => setListening(false);
+    rec.onerror = () => setListening(false);
+    recRef.current = rec;
+    setListening(true);
+    try { rec.start(); } catch { setListening(false); }
   }
 
   return (
     <>
       <div className="scroll">
         {msgs.length > 0 && (
-          <div className="chatclear"><button onClick={() => setMsgs([])}>＋ Nuova conversazione</button></div>
+          <div className="chatclear"><button onClick={() => { setMsgs([]); try { window.speechSynthesis?.cancel(); } catch {} }}>＋ Nuova conversazione</button></div>
         )}
         {msgs.length === 0 && (
           <div className="hero">
@@ -584,21 +698,24 @@ function Chat() {
             <div className={`av ${m.role === "user" ? "me" : "ai"}`}>
               {m.role === "user" ? "Tu" : <Sparkles size={15} />}
             </div>
-            <div className={`bubble ${m.role === "user" ? "me" : "ai"}`}>{m.content}</div>
+            <div className={`bubble ${m.role === "user" ? "me" : "ai"}`}>
+              {m.role === "user" ? m.content
+                : m.content === "" ? <span className="dots"><span></span><span></span><span></span></span>
+                : (<><MD text={m.content} />{!busy && (
+                    <button className="speak" title="Leggi ad alta voce" onClick={() => speak(m.content)}><Volume2 size={14} /></button>
+                  )}</>)}
+            </div>
           </div>
         ))}
-        {busy && (
-          <div className="msg">
-            <div className="av ai"><Sparkles size={15} /></div>
-            <div className="bubble ai dots"><span></span><span></span><span></span></div>
-          </div>
-        )}
         <div ref={endRef} />
       </div>
       <div className="bar">
         <div className="field">
+          {speechOK && (
+            <button className={`mic ${listening ? "on" : ""}`} onClick={toggleMic} title="Detta col microfono"><Mic size={18} /></button>
+          )}
           <textarea
-            ref={taRef} value={text} rows={1} placeholder="Scrivi una domanda tecnica…"
+            ref={taRef} value={text} rows={1} placeholder={listening ? "Sto ascoltando…" : "Scrivi o detta una domanda…"}
             onChange={(e) => { setText(e.target.value); e.target.style.height = "auto"; e.target.style.height = e.target.scrollHeight + "px"; }}
             onKeyDown={(e) => { if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); send(); } }}
           />
@@ -675,7 +792,7 @@ function SchedaBuilder({ user }) {
         'Rispondi solo con JSON valido, senza altro: {"nome":string,"serie":string,"ripetizioni":string,"recupero":string,"intensita":string,"note":string}. Italiano.';
       const prompt = `Obiettivo: ${goal}. Livello: ${level}. Attrezzatura: ${equip}. Focus del giorno: ${day.focus || day.nome}. ` +
         `Sostituisci "${ex.nome}" con un'alternativa DIVERSA che alleni lo stesso schema/muscolo.`;
-      const raw = await callClaude({ system: sys, messages: [{ role: "user", content: prompt }], max_tokens: 600 });
+      const raw = await callClaude({ system: sys, messages: [{ role: "user", content: prompt }], max_tokens: 600, tier: "fast" });
       const nx = extractJSON(raw);
       setPlan((p) => { const c = clone(p); c.giorni[di].esercizi[ei] = nx; return c; });
     } catch (e) {
@@ -753,7 +870,7 @@ function SchedaBuilder({ user }) {
         "Testo semplice in italiano, conciso: 1-2 righe per settimana. Niente markdown pesante.";
       const tot = plan.giorni?.reduce((a, d) => a + (d.esercizi?.length || 0), 0);
       const prompt = `Obiettivo: ${goal}. Livello: ${level}. Giorni/sett: ${days}. Scheda: "${plan.titolo}", ${tot} esercizi totali.`;
-      const raw = await callClaude({ system: sys, messages: [{ role: "user", content: prompt }], max_tokens: 900 });
+      const raw = await callClaude({ system: sys, messages: [{ role: "user", content: prompt }], max_tokens: 900, tier: "fast" });
       setProg(raw.trim());
     } catch (e) { setErr(e?.message ? "Errore: " + e.message : "Progressione non riuscita, riprova."); }
     finally { setProgBusy(false); }

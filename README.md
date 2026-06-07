@@ -50,7 +50,8 @@ git push -u origin main
 | Nome | Valore | Dove |
 |------|--------|------|
 | `ANTHROPIC_API_KEY` | la tua chiave (console.anthropic.com) | server |
-| `CLAUDE_MODEL` | `claude-sonnet-4-6` *(opzionale)* | server |
+| `CLAUDE_MODEL` | `claude-sonnet-4-6` *(opzionale, schede)* | server |
+| `CLAUDE_CHAT_MODEL` | `claude-haiku-4-5-20251001` *(opzionale, chat)* | server |
 | `VITE_SUPABASE_URL` | Project URL di Supabase *(opzionale)* | frontend |
 | `VITE_SUPABASE_ANON_KEY` | anon public key *(opzionale)* | frontend |
 
@@ -76,8 +77,15 @@ Solo frontend, senza AI: `npm run dev`.
 
 ## Note
 
-- Senza login le schede stanno nel localStorage del browser; con login sono nel cloud
-  (tabella `user_data`, una riga per utente, protetta da RLS).
+- **Installabile (PWA)**: su Android/Chrome compare "Aggiungi a schermata Home"; su iPhone usa
+  Safari → Condividi → "Aggiungi a Home". Il service worker è *network-first*: online prende
+  sempre l'ultima versione (niente build vecchia in cache), offline fa da fallback.
+- **Chat in streaming**: il Coach risponde in tempo reale tramite l'endpoint Edge `/api/chat`,
+  con dettatura vocale e lettura ad alta voce (Web Speech API del browser, dove supportata).
+- **Costi**: la chat usa il modello veloce (Haiku), le schede il modello di qualità (Sonnet);
+  c'è un tetto ai token e un rate-limit leggero anti-abuso (40 richieste/min per IP, best-effort).
+  Per un limite robusto in produzione si può collegare Upstash/Vercel KV.
+- Senza login le schede stanno nel localStorage del browser; con login sono nel cloud (RLS).
 - Se l'AI smette di rispondere dopo qualche mese è quasi sempre il modello deprecato:
-  aggiorna `CLAUDE_MODEL` su Vercel e rifai il deploy. La stringa corrente si verifica su
+  aggiorna `CLAUDE_MODEL` / `CLAUDE_CHAT_MODEL` su Vercel e rifai il deploy. Stringhe correnti su
   https://docs.claude.com/en/docs/about-claude/models/overview
